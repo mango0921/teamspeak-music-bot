@@ -47,6 +47,8 @@ export interface AlbumItem {
 export interface BotStatus {
   id: string;
   name: string;
+  /** music = 音乐机器人；voice = 网页通话分身（不进音乐后台） */
+  purpose?: 'music' | 'voice';
   connected: boolean;
   playing: boolean;
   paused: boolean;
@@ -292,6 +294,8 @@ export const usePlayerStore = defineStore('player', {
     },
 
     updateBotStatus(botId: string, status: BotStatus) {
+      // 网页通话分身不进音乐后台：WS 推送也要过滤，否则会绕过列表接口的 purpose 过滤。
+      if (status.purpose === 'voice') return;
       const prev = this.bots.find((b) => b.id === botId);
       const prevSongId = prev?.currentSong?.id;
 

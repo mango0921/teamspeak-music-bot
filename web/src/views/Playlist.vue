@@ -101,6 +101,11 @@ async function playAll() {
 onMounted(async () => {
   const id = route.params.id as string;
   const platform = (route.query.platform as string) || 'netease';
+  // 后端 resolveBot 要求显式 botId；首次进入页面时列表可能还没拉回来。
+  if (!store.bots.length) {
+    try { await store.fetchBots(); } catch { /* 失败时下面会落到无 botId 的报错路径 */ }
+  }
+  const botId = store.activeBotId ?? store.bots[0]?.id ?? undefined;
 
   const detailUrl = kind === 'album'
     ? `/api/music/album/${id}/detail`
@@ -115,8 +120,8 @@ onMounted(async () => {
   // the "不存在" empty state. For albums, detail always 404s — that
   // is intentional; the fallback stub below handles it.
   const [detailRes, songsRes] = await Promise.allSettled([
-    axios.get(detailUrl, { params: { platform } }),
-    axios.get(songsUrl, { params: { platform } }),
+    axios.get(detailUrl, { params: { platform, botId } }),
+    axios.get(songsUrl, { params: { platform, botId } }),
   ]);
 
   const detail = detailRes.status === 'fulfilled' ? detailRes.value.data?.playlist : null;
