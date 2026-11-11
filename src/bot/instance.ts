@@ -495,6 +495,8 @@ export class BotInstance extends EventEmitter {
     });
 
     this.tsClient.on("textMessage", (msg: TS3TextMessage) => {
+      // 供网页聊天桥接转发（包含频道消息与私聊），命令处理仍走下面这条链路。
+      this.emit("textMessage", msg);
       this.handleTextMessage(msg).catch((err) => {
         this.logger.error({ err }, "Unhandled error in text message handler");
       });
@@ -881,6 +883,13 @@ export class BotInstance extends EventEmitter {
       clearTimeout(this.idleTimer);
       this.idleTimer = null;
     }
+  }
+
+  /** 以 bot 自己的身份往当前频道发一条文本消息（网页聊天用）。 */
+  async sendChatMessage(text: string): Promise<void> {
+    const body = text.trim();
+    if (!body || !this.connected) return;
+    await this.tsClient.sendTextMessage(body);
   }
 
   private async handleTextMessage(msg: TS3TextMessage): Promise<void> {

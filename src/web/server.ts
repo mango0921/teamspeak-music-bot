@@ -31,6 +31,7 @@ import {
 } from "../music/spotify/binary.js";
 import { setupWebSocket } from "./websocket.js";
 import { setupVoiceDownlink } from "./voice-downlink.js";
+import { setupChatBridge } from "./chat-bridge.js";
 import { createUserStore } from "../data/users.js";
 import { createSessionStore } from "../data/sessions.js";
 import { createApiKeyStore } from "../data/api-keys.js";
@@ -237,16 +238,21 @@ export function createWebServer(options: WebServerOptions): WebServer {
   // ─── WebSocket with manual upgrade auth ────────────────────────────────
   const wss = new WebSocketServer({ noServer: true });
   const voiceWss = new WebSocketServer({ noServer: true });
+  const chatWss = new WebSocketServer({ noServer: true });
   wss.on("error", (err) => {
     logger.error({ err }, "WebSocket server error");
   });
   voiceWss.on("error", (err) => {
     logger.error({ err }, "Voice WebSocket server error");
   });
+  chatWss.on("error", (err) => {
+    logger.error({ err }, "Chat WebSocket server error");
+  });
   server.on("upgrade", (req, socket, head) => {
     const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
     const voiceMatch = /^\/api\/voice\/downlink\/([0-9a-fA-F-]{1,64})$/.exec(pathname);
-    if (pathname !== "/ws" && !voiceMatch) {
+    const chatMatch = /^\/api\/voice\/chat\/([0-9a-fA-F-]{1,64})$/.exec(pathname);
+    if (pathname !== "/ws" && !voiceMatch && !chatMatch) {
       socket.destroy();
       return;
     }
@@ -283,6 +289,18 @@ export function createWebServer(options: WebServerOptions): WebServer {
       });
       return;
     }
+    if (chatMatch) {
+      if (!options.botManager.getBot(chatMatch[1]!)) {
+        socket.write("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n");
+        socket.destroy();
+        return;
+      }
+      chatWss.handleUpgrade(req, socket, head, (ws) => {
+        (ws as unknown as { chatBotId: string }).chatBotId = chatMatch[1]!;
+        chatWss.emit("connection", ws, req);
+      });
+      return;
+    }
     // Guest sessions are only valid while guest mode is enabled.
     if (result.role === "guest" && !options.config.guestMode.enabled) {
       socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
@@ -304,6 +322,7 @@ export function createWebServer(options: WebServerOptions): WebServer {
   });
   const controller = setupWebSocket(wss, options.botManager, logger);
   const voiceController = setupVoiceDownlink(voiceWss, options.botManager, logger);
+  const chatController = setupChatBridge(chatWss, options.botManager, logger);
   onGuestPolicyChanged = controller.refreshGuestPolicy;
 
   // ─── Session cleanup interval ──────────────────────────────────────────
@@ -332,6 +351,7 @@ export function createWebServer(options: WebServerOptions): WebServer {
       }
       controller.cleanup();
       voiceController.cleanup();
+  chatController.cleanup();
       wss.close();
       voiceWss.close();
       server.close();
