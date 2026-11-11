@@ -35,6 +35,23 @@ describe("Command Parser", () => {
     expect(result!.args).toBe("稻香");
   });
 
+  it("resolves built-in Chinese commands", () => {
+    const play = parseCommand("!播放 晴天", "!");
+    expect(play!.name).toBe("play");
+    expect(play!.args).toBe("晴天");
+
+    expect(parseCommand("!点歌 稻香", "!")!.name).toBe("play");
+    expect(parseCommand("!切歌", "!")!.name).toBe("skip");
+    expect(parseCommand("!暂停", "!")!.name).toBe("pause");
+    expect(parseCommand("!音量 80", "!")!.name).toBe("vol");
+    expect(parseCommand("!音量 80", "!")!.args).toBe("80");
+  });
+
+  it("keeps config aliases ahead of built-in Chinese aliases", () => {
+    const result = parseCommand("!播放 x", "!", { 播放: "add" });
+    expect(result!.name).toBe("add");
+  });
+
   it("parses command with no args", () => {
     const result = parseCommand("!pause", "!");
     expect(result!.name).toBe("pause");

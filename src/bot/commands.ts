@@ -14,6 +14,48 @@ export const ADMIN_COMMANDS = new Set([
   "stop", "clear", "remove", "move", "vol", "mode",
 ]);
 
+/**
+ * 内置中文指令别名：`!播放 晴天` 与 `!play 晴天` 等价。
+ * 键统一小写；配置里的 commandAliases 仍然优先，方便用户覆盖。
+ */
+export const CHINESE_COMMAND_ALIASES: Record<string, string> = {
+  搜索: "search",
+  查找: "find",
+  播放: "play",
+  点歌: "play",
+  添加: "add",
+  优先播放: "playnext",
+  插播: "playnext",
+  暂停: "pause",
+  继续: "resume",
+  停止: "stop",
+  下一首: "next",
+  下一曲: "next",
+  切歌: "skip",
+  跳过: "skip",
+  上一首: "prev",
+  上一曲: "prev",
+  音量: "vol",
+  当前: "now",
+  队列: "queue",
+  列表: "list",
+  清空: "clear",
+  移除: "remove",
+  模式: "mode",
+  歌单: "playlist",
+  专辑: "album",
+  电台: "fm",
+  歌手: "artist",
+  投票: "vote",
+  歌词: "lyrics",
+  移动: "move",
+  跟随: "follow",
+  保存: "save",
+  加载: "load",
+  存档: "queues",
+  帮助: "help",
+};
+
 export function parseCommand(
   message: string,
   prefix: string,
@@ -28,8 +70,10 @@ export function parseCommand(
   const parts = withoutPrefix.split(/\s+/);
   let name = parts[0].toLowerCase();
 
-  if (aliases[name]) {
-    name = aliases[name];
+  // 中文别名先归一化到英文命令名，配置里的 aliases 仍然优先。
+  const resolved = { ...CHINESE_COMMAND_ALIASES, ...aliases }[name];
+  if (resolved) {
+    name = resolved;
   }
 
   const flags = new Set<string>();
