@@ -1,4 +1,4 @@
-import crypto from "node:crypto";
+﻿import crypto from "node:crypto";
 import { EventEmitter } from "node:events";
 import path from "node:path";
 import {
@@ -56,6 +56,8 @@ async function connectWithTimeout(
 
 export interface CreateBotParams {
   name: string;
+  /** music = 音乐机器人；voice = 网页通话分身 */
+  purpose?: "music" | "voice";
   serverAddress: string;
   serverPort: number;
   queryPort?: number;
@@ -261,6 +263,7 @@ export class BotManager extends EventEmitter {
     const bot = new BotInstance({
       id,
       name: params.name,
+      purpose: params.purpose === "voice" ? "voice" : "music",
       tsOptions: {
         host: params.serverAddress,
         port: params.serverPort,
@@ -299,6 +302,7 @@ export class BotManager extends EventEmitter {
       serverProtocol: params.serverProtocol ?? "",
       ts6ApiKey: params.ts6ApiKey ?? "",
       serverPassword: params.serverPassword ?? "",
+      purpose: params.purpose === "voice" ? "voice" : "music",
       // Persist the generated key and security offset before the first start.
       identity: bot.getIdentityExport(),
     });
@@ -397,6 +401,7 @@ export class BotManager extends EventEmitter {
       const bot = new BotInstance({
         id: saved.id,
         name: saved.name,
+        purpose: saved.purpose,
         tsOptions: {
           host: saved.serverAddress,
           port: saved.serverPort,
@@ -460,6 +465,7 @@ export class BotManager extends EventEmitter {
       const bot = new BotInstance({
         id: saved.id,
         name: saved.name,
+        purpose: saved.purpose,
         tsOptions: {
           host: saved.serverAddress,
           port: saved.serverPort,
@@ -535,3 +541,4 @@ export class BotManager extends EventEmitter {
     this.bots.clear();
   }
 }
+

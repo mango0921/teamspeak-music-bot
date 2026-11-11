@@ -58,10 +58,14 @@ export function createBotRouter(
   router.get("/", (req, res) => {
     const all = botManager.getAllBots().map((b) => b.getStatus());
     const u = req.user!;
+    // 网页通话分身（purpose=voice）默认不出现在音乐后台
+    const purpose = typeof req.query.purpose === "string" ? req.query.purpose : "music";
+    const visible =
+      purpose === "all" ? all : all.filter((b) => (b.purpose ?? "music") === purpose);
     const bots =
       u.role === "admin" || u.bots === "all"
-        ? all
-        : all.filter((b) => u.bots instanceof Set && u.bots.has(b.id));
+        ? visible
+        : visible.filter((b) => u.bots instanceof Set && u.bots.has(b.id));
     res.json({ bots });
   });
 
@@ -440,6 +444,7 @@ export function createBotRouter(
         channelPassword,
         serverPassword,
         autoStart,
+        purpose,
       } = req.body;
       if (!name || !serverAddress || !nickname) {
         res
@@ -457,6 +462,7 @@ export function createBotRouter(
         channelPassword,
         serverPassword,
         autoStart: autoStart ?? false,
+        purpose: purpose === "voice" ? "voice" : "music",
       });
       res.status(201).json(bot.getStatus());
     } catch (err) {

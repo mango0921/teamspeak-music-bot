@@ -74,6 +74,8 @@ export interface BotInstance {
   ts6ApiKey: string;
   /** Password to join the TS server (server password) */
   serverPassword: string;
+  /** "music" = 音乐机器人（后台可见、响应指令）；"voice" = 网页通话分身（后台隐藏、不响应指令） */
+  purpose?: "music" | "voice";
   identity?: string;
 }
 
@@ -205,6 +207,10 @@ function migrateSchema(db: Database.Database): void {
   }
   if (!names.includes("play_mode")) {
     db.exec("ALTER TABLE bot_instances ADD COLUMN play_mode TEXT NOT NULL DEFAULT 'seq'");
+  }
+  if (!names.includes("purpose")) {
+    // 旧数据都是音乐机器人；网页通话分身由 PowerfulTS 创建时显式标记为 voice。
+    db.exec("ALTER TABLE bot_instances ADD COLUMN purpose TEXT NOT NULL DEFAULT 'music'");
   }
 
   const userColumns = db.prepare("PRAGMA table_info(users)").all() as Array<{ name: string }>;
@@ -425,8 +431,8 @@ export function createDatabase(dbPath: string): BotDatabase {
   `);
 
   const upsertInstance = db.prepare(`
-    INSERT INTO bot_instances (id, name, serverAddress, serverPort, nickname, defaultChannel, channelId, channelPassword, autoStart, serverProtocol, ts6ApiKey, serverPassword, identity)
-    VALUES (@id, @name, @serverAddress, @serverPort, @nickname, @defaultChannel, @channelId, @channelPassword, @autoStart, @serverProtocol, @ts6ApiKey, @serverPassword, @identity)
+    INSERT INTO bot_instances (id, name, serverAddress, serverPort, nickname, defaultChannel, channelId, channelPassword, autoStart, serverProtocol, ts6ApiKey, serverPassword, purpose, identity)
+    VALUES (@id, @name, @serverAddress, @serverPort, @nickname, @defaultChannel, @channelId, @channelPassword, @autoStart, @serverProtocol, @ts6ApiKey, @serverPassword, @purpose, @identity)
     ON CONFLICT(id) DO UPDATE SET
       name = excluded.name,
       serverAddress = excluded.serverAddress,
@@ -439,6 +445,7 @@ export function createDatabase(dbPath: string): BotDatabase {
       serverProtocol = excluded.serverProtocol,
       ts6ApiKey = excluded.ts6ApiKey,
       serverPassword = excluded.serverPassword,
+      purpose = excluded.purpose,
       identity = excluded.identity
   `);
 
@@ -585,6 +592,7 @@ export function createDatabase(dbPath: string): BotDatabase {
     saveBotInstance(instance) {
       upsertInstance.run({
         ...instance,
+        purpose: instance.purpose === "voice" ? "voice" : "music",
         autoStart: instance.autoStart ? 1 : 0,
         identity: instance.identity ?? null,
       });
@@ -596,6 +604,7 @@ export function createDatabase(dbPath: string): BotDatabase {
       >;
       return rows.map((r) => ({
         ...r,
+        purpose: r.purpose === "voice" ? "voice" : "music",
         autoStart: r.autoStart === 1,
         serverProtocol: r.serverProtocol ?? "",
         ts6ApiKey: r.ts6ApiKey ?? "",

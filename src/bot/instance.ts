@@ -119,6 +119,8 @@ export function spotifyPortsForBotId(id: string): { apiPort: number; callbackPor
 export interface BotInstanceOptions {
   id: string;
   name: string;
+  /** music = 音乐机器人；voice = 网页通话分身（不响应指令、后台隐藏） */
+  purpose?: "music" | "voice";
   tsOptions: TS3ClientOptions;
   neteaseProvider: MusicProvider;
   qqProvider: MusicProvider;
@@ -155,6 +157,7 @@ export interface BotInstanceOptions {
 export interface BotStatus {
   id: string;
   name: string;
+  purpose: "music" | "voice";
   connected: boolean;
   playing: boolean;
   paused: boolean;
@@ -208,6 +211,8 @@ export class BotInstance extends EventEmitter {
   private config: BotConfig;
   private logger: Logger;
   private avatarStore: AvatarStore;
+  /** music = 音乐机器人；voice = 网页通话分身 */
+  readonly purpose: "music" | "voice";
   private connected = false;
   /** Fences async work and timers from earlier TeamSpeak connections. */
   private lifecycleGeneration = 0;
@@ -243,6 +248,7 @@ export class BotInstance extends EventEmitter {
     super();
     this.id = options.id;
     this.name = options.name;
+    this.purpose = options.purpose === "voice" ? "voice" : "music";
     this.neteaseProvider = options.neteaseProvider;
     this.qqProvider = options.qqProvider;
     this.bilibiliProvider = options.bilibiliProvider;
@@ -893,6 +899,8 @@ export class BotInstance extends EventEmitter {
   }
 
   private async handleTextMessage(msg: TS3TextMessage): Promise<void> {
+    // 网页通话分身只转发聊天，不响应任何指令（包括 !help），避免刷屏。
+    if (this.purpose === "voice") return;
     const parsed = parseCommand(
       msg.message,
       this.config.commandPrefix,
@@ -2312,6 +2320,7 @@ export class BotInstance extends EventEmitter {
     return {
       id: this.id,
       name: this.name,
+      purpose: this.purpose,
       connected: this.connected,
       playing: playerState === "playing",
       paused: playerState === "paused" || !!recoveryPaused,
