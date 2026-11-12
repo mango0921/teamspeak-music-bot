@@ -1,4 +1,4 @@
-﻿import crypto from "node:crypto";
+import crypto from "node:crypto";
 import { EventEmitter } from "node:events";
 import path from "node:path";
 import {
@@ -281,6 +281,7 @@ export class BotManager extends EventEmitter {
       config: this.config,
       logger: this.logger,
       avatarStore: this.avatarStore,
+      cookieStore: this.cookieStore,
       managedVoiceClients: this.managedVoiceClients,
       spotifyDataDir: this.spotifyDataDir,
       spotifyOAuth: this.spotifyOAuth,
@@ -423,6 +424,7 @@ export class BotManager extends EventEmitter {
         config: this.config,
         logger: this.logger,
         avatarStore: this.avatarStore,
+      cookieStore: this.cookieStore,
         managedVoiceClients: this.managedVoiceClients,
         spotifyDataDir: this.spotifyDataDir,
         spotifyOAuth: this.spotifyOAuth,
@@ -484,6 +486,7 @@ export class BotManager extends EventEmitter {
         config: this.config,
         logger: this.logger,
         avatarStore: this.avatarStore,
+      cookieStore: this.cookieStore,
         managedVoiceClients: this.managedVoiceClients,
         spotifyDataDir: this.spotifyDataDir,
         spotifyOAuth: this.spotifyOAuth,

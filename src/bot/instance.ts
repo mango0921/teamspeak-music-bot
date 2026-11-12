@@ -20,6 +20,7 @@ import {
 } from "../audio/realtime-voice-telemetry.js";
 import { PlayQueue, PlayMode, type QueuedSong } from "../audio/queue.js";
 import type { MusicProvider, Platform, Song } from "../music/provider.js";
+import type { CookieStore } from "../music/auth.js";
 import {
   parseCommand,
   canRunCommand,
@@ -134,6 +135,8 @@ export interface BotInstanceOptions {
   config: BotConfig;
   logger: Logger;
   avatarStore: AvatarStore;
+  /** 扫码登录成功后把 cookie 落盘用（由 manager 注入） */
+  cookieStore?: CookieStore;
   /** Shared across one manager so its bots do not trigger one another. */
   managedVoiceClients?: ManagedVoiceClientRegistry;
   /** Base dir (under DATA_DIR) for per-bot go-librespot work/config trees. */
@@ -211,6 +214,7 @@ export class BotInstance extends EventEmitter {
   private config: BotConfig;
   private logger: Logger;
   private avatarStore: AvatarStore;
+  private cookieStore?: CookieStore;
   /** music = 音乐机器人；voice = 网页通话分身 */
   readonly purpose: "music" | "voice";
   private connected = false;
@@ -261,6 +265,7 @@ export class BotInstance extends EventEmitter {
     this.config = options.config;
     this.logger = options.logger.child({ botId: this.id });
     this.avatarStore = options.avatarStore;
+    this.cookieStore = options.cookieStore;
 
     this.tsClient = new TS3Client(options.tsOptions, this.logger);
     this.player = new AudioPlayer(this.logger);
@@ -1163,6 +1168,12 @@ export class BotInstance extends EventEmitter {
         const state = await provider.checkQrCodeStatus(qr.key);
         if (state === "confirmed") {
           await this.tsClient.sendTextMessage(`【${label}】登录成功，继续播放`);
+          // 扫码得到的 cookie 只在 provider 内存里，落盘后重启才不用重新登录。
+          const cookie = provider.getCookie();
+          if (cookie && this.cookieStore) {
+            this.cookieStore.save(this.id, platform, cookie);
+            this.logger.info({ platform }, "login cookie persisted");
+          }
           return true;
         }
         if (state === "expired") {
