@@ -32,6 +32,7 @@ import {
 import { setupWebSocket } from "./websocket.js";
 import { setupVoiceDownlink } from "./voice-downlink.js";
 import { setupChatBridge } from "./chat-bridge.js";
+import { getLoginQr } from "./login-qr.js";
 import { createUserStore } from "../data/users.js";
 import { createSessionStore } from "../data/sessions.js";
 import { createApiKeyStore } from "../data/api-keys.js";
@@ -121,6 +122,19 @@ export function createWebServer(options: WebServerOptions): WebServer {
   // 3 req per minute per IP for /setup (more limited; first-run is rare).
   const loginLimit = createRateLimit({ capacity: 5, refillPerSec: 5 / 60 });
   const setupLimit = createRateLimit({ capacity: 3, refillPerSec: 3 / 60 });
+  // 扫码登录二维码图片：公开访问（<img> 无法带鉴权头），key 随机且 5 分钟过期。
+  app.get("/api/auth/login-qr/:file", (req, res) => {
+    const key = String(req.params.file).replace(/\.png$/i, "");
+    const png = getLoginQr(key);
+    if (!png) {
+      res.status(404).end();
+      return;
+    }
+    res.setHeader("Content-Type", "image/png");
+    res.setHeader("Cache-Control", "no-store");
+    res.send(png);
+  });
+
   app.use("/api/session/login", loginLimit);
   app.use("/api/session/setup", setupLimit);
 

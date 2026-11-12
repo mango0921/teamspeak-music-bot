@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import os from "node:os";
 import {
   TS3Client,
   type TS3ClientOptions,
@@ -21,6 +22,7 @@ import {
 import { PlayQueue, PlayMode, type QueuedSong } from "../audio/queue.js";
 import type { MusicProvider, Platform, Song } from "../music/provider.js";
 import type { CookieStore } from "../music/auth.js";
+import { rememberLoginQr } from "../web/login-qr.js";
 import {
   parseCommand,
   canRunCommand,
@@ -1145,6 +1147,18 @@ export class BotInstance extends EventEmitter {
    * 播放前确认音源已登录：未登录就把二维码链接发到当前频道，等扫码成功后继续。
    * 返回 false 表示等待失败/超时，调用方应跳过这首。
    */
+  /** 二维码图片的公网基地址：优先 config.publicUrl，否则用本机局域网 IP:webPort。 */
+  private publicBaseUrl(): string {
+    const configured = (this.config.publicUrl ?? "").trim().replace(/\/+$/, "");
+    if (configured) return configured;
+    const addresses = Object.values(os.networkInterfaces())
+      .flat()
+      .find((item) => item && item.family === "IPv4" && !item.internal);
+    const host = addresses?.address ?? "127.0.0.1";
+    const port = (this.config as { webPort?: number }).webPort ?? 3000;
+    return `http://${host}:${port}`;
+  }
+
   private async ensureProviderLogin(
     platform: Platform,
     provider: MusicProvider
@@ -1157,8 +1171,15 @@ export class BotInstance extends EventEmitter {
 
       const qr = await provider.getQrCode();
       if (!qr?.qrUrl) return false;
+      if (qr.qrImg) rememberLoginQr(qr.key, qr.qrImg);
+      // 聊天里直接发 .png 图片地址：网页聊天会内联渲染成二维码，TS 客户端也能预览。
+      const imageUrl = qr.qrImg
+        ? `${this.publicBaseUrl()}/api/auth/login-qr/${qr.key}.png`
+        : "";
       await this.tsClient.sendTextMessage(
-        `【${label}未登录】请扫码登录，登录成功后会自动播放：${qr.qrUrl}`
+        imageUrl
+          ? `【${label}未登录】请扫码登录，登录成功后会自动播放：${imageUrl}`
+          : `【${label}未登录】请扫码登录，登录成功后会自动播放：${qr.qrUrl}`
       );
       this.logger.info({ platform }, "sent login QR to channel");
 
