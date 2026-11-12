@@ -1136,6 +1136,49 @@ export class BotInstance extends EventEmitter {
   }
 
   /** Resolve URL for a song and start playing it. Skips to next if URL fails. */
+  /**
+   * 播放前确认音源已登录：未登录就把二维码链接发到当前频道，等扫码成功后继续。
+   * 返回 false 表示等待失败/超时，调用方应跳过这首。
+   */
+  private async ensureProviderLogin(
+    platform: Platform,
+    provider: MusicProvider
+  ): Promise<boolean> {
+    if (platform !== "netease" && platform !== "qq") return true;
+    const label = platform === "netease" ? "网易云音乐" : "QQ音乐";
+    try {
+      const status = await provider.getAuthStatus();
+      if (status.loggedIn) return true;
+
+      const qr = await provider.getQrCode();
+      if (!qr?.qrUrl) return false;
+      await this.tsClient.sendTextMessage(
+        `【${label}未登录】请扫码登录，登录成功后会自动播放：${qr.qrUrl}`
+      );
+      this.logger.info({ platform }, "sent login QR to channel");
+
+      const deadline = Date.now() + 180_000;
+      while (Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const state = await provider.checkQrCodeStatus(qr.key);
+        if (state === "confirmed") {
+          await this.tsClient.sendTextMessage(`【${label}】登录成功，继续播放`);
+          return true;
+        }
+        if (state === "expired") {
+          await this.tsClient.sendTextMessage(`【${label}】二维码已过期，请重新点歌`);
+          return false;
+        }
+      }
+      await this.tsClient.sendTextMessage(`【${label}】等待登录超时，已取消播放`);
+      return false;
+    } catch (err) {
+      // 登录流程本身出错时不要阻断原有的播放路径
+      this.logger.warn({ err, platform }, "provider login check failed");
+      return true;
+    }
+  }
+
   async resolveAndPlay(song: QueuedSong): Promise<boolean> {
     if (!this.connected) {
       this.logger.warn({ songId: song.id, name: song.name }, "resolveAndPlay called on disconnected bot — skipping");
@@ -1150,6 +1193,8 @@ export class BotInstance extends EventEmitter {
     // cmdPlaylist, cmdAlbum, cmdFm, trackEnd auto-advance, etc.).
     this.voteSkipUsers.clear();
     const provider = this.getProviderFor(song.platform);
+    // 未登录的音源先把二维码发到频道，等扫码后再继续。
+    if (!(await this.ensureProviderLogin(song.platform, provider))) return false;
     try {
       if (song.platform === "bilibili" && (!song.id.includes("?p=") || song.duration === 0)) {
         const detail = await provider.getSongDetail(song.id);
